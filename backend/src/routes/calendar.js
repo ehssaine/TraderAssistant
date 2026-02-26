@@ -3,6 +3,10 @@ import { getMockCalendar, getMockCOT, getMockFedWatch } from '../services/mockMa
 
 export const calendarRoutes = Router();
 
+// Economic calendar, COT, and FedWatch data
+// Alpha Vantage free tier doesn't cover these endpoints,
+// so we keep the generated mock data which is date-aware and realistic.
+
 calendarRoutes.get('/calendar', (req, res) => {
   res.json(getMockCalendar());
 });

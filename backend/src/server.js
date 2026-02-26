@@ -9,6 +9,7 @@ import { priceRoutes } from './routes/prices.js';
 import { calendarRoutes } from './routes/calendar.js';
 import { tradeRoutes } from './routes/trades.js';
 import { newsRoutes } from './routes/news.js';
+import { migrate } from './db/migrate.js';
 
 dotenv.config();
 
@@ -49,6 +50,14 @@ app.use((err, req, res, next) => {
   res.status(500).json({ error: 'Internal server error' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`TraderAssistant running at http://localhost:${PORT}`);
-});
+// Run DB migration then start server
+migrate()
+  .then(() => {
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`TraderAssistant running at http://localhost:${PORT}`);
+    });
+  })
+  .catch((err) => {
+    console.error('Failed to start:', err.message);
+    process.exit(1);
+  });

@@ -1,64 +1,242 @@
 import { Router } from 'express';
+import pool from '../db/index.js';
+import { getAllPrices } from '../services/alphaVantage.js';
 
 export const tradeRoutes = Router();
 
-const trades = [];
-const journalEntries = [];
+// ── Trades CRUD ──────────────────────────────────────────────────────────
 
-tradeRoutes.get('/trades', (req, res) => {
-  res.json(trades);
+tradeRoutes.get('/trades', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM trades ORDER BY created_at DESC'
+    );
+    res.json(rows.map(formatTrade));
+  } catch (err) {
+    console.error('GET /trades error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch trades' });
+  }
 });
 
-tradeRoutes.post('/trades', (req, res) => {
-  const trade = { ...req.body, id: Date.now().toString(), createdAt: new Date().toISOString() };
-  trades.unshift(trade);
-  res.status(201).json(trade);
+tradeRoutes.post('/trades', async (req, res) => {
+  const { date, symbol, direction, entry, target, stop, exit, pnl, riskReward, result, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO trades (date, symbol, direction, entry, target, stop, exit_price, pnl, risk_reward, result, notes)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING *`,
+      [date || new Date(), symbol, direction, entry, target, stop, exit, pnl, riskReward, result || 'open', notes]
+    );
+    res.status(201).json(formatTrade(rows[0]));
+  } catch (err) {
+    console.error('POST /trades error:', err.message);
+    res.status(500).json({ error: 'Failed to create trade' });
+  }
 });
 
-tradeRoutes.put('/trades/:id', (req, res) => {
-  const idx = trades.findIndex(t => t.id === req.params.id);
-  if (idx === -1) return res.status(404).json({ error: 'Trade not found' });
-  trades[idx] = { ...trades[idx], ...req.body };
-  res.json(trades[idx]);
+tradeRoutes.put('/trades/:id', async (req, res) => {
+  const { id } = req.params;
+  const { date, symbol, direction, entry, target, stop, exit, pnl, riskReward, result, notes } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE trades SET
+        date=$1, symbol=$2, direction=$3, entry=$4, target=$5, stop=$6,
+        exit_price=$7, pnl=$8, risk_reward=$9, result=$10, notes=$11, updated_at=NOW()
+       WHERE id=$12 RETURNING *`,
+      [date, symbol, direction, entry, target, stop, exit, pnl, riskReward, result, notes, id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Trade not found' });
+    res.json(formatTrade(rows[0]));
+  } catch (err) {
+    console.error('PUT /trades error:', err.message);
+    res.status(500).json({ error: 'Failed to update trade' });
+  }
 });
 
-tradeRoutes.get('/journal', (req, res) => {
-  res.json(journalEntries);
+tradeRoutes.delete('/trades/:id', async (req, res) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM trades WHERE id=$1', [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Trade not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /trades error:', err.message);
+    res.status(500).json({ error: 'Failed to delete trade' });
+  }
 });
 
-tradeRoutes.post('/journal', (req, res) => {
-  const entry = { ...req.body, id: Date.now().toString(), createdAt: new Date().toISOString() };
-  journalEntries.unshift(entry);
-  res.status(201).json(entry);
+// ── Journal CRUD ─────────────────────────────────────────────────────────
+
+tradeRoutes.get('/journal', async (req, res) => {
+  try {
+    const { rows } = await pool.query(
+      'SELECT * FROM journal_entries ORDER BY created_at DESC'
+    );
+    res.json(rows.map(formatJournal));
+  } catch (err) {
+    console.error('GET /journal error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch journal entries' });
+  }
 });
 
-tradeRoutes.get('/watchlist', (req, res) => {
-  const watchlist = [
-    { symbol: 'XAU/USD', name: 'Gold Spot', price: 2650 + Math.random() * 20, change: (Math.random() - 0.5) * 1 },
-    { symbol: 'XAG/USD', name: 'Silver Spot', price: 31 + Math.random() * 1, change: (Math.random() - 0.5) * 0.5 },
-    { symbol: 'GLD', name: 'SPDR Gold Shares', price: 245 + Math.random() * 3, change: (Math.random() - 0.5) * 0.5 },
-    { symbol: 'SLV', name: 'iShares Silver Trust', price: 28 + Math.random() * 1, change: (Math.random() - 0.5) * 0.8 },
-    { symbol: 'GDX', name: 'Gold Miners ETF', price: 36 + Math.random() * 2, change: (Math.random() - 0.5) * 1.2 },
-    { symbol: 'DXY', name: 'US Dollar Index', price: 104 + Math.random() * 1, change: (Math.random() - 0.5) * 0.3 },
-  ];
-  res.json(watchlist);
+tradeRoutes.post('/journal', async (req, res) => {
+  const { title, content, type, tags } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `INSERT INTO journal_entries (title, content, type, tags)
+       VALUES ($1,$2,$3,$4) RETURNING *`,
+      [title, content, type || 'note', tags || []]
+    );
+    res.status(201).json(formatJournal(rows[0]));
+  } catch (err) {
+    console.error('POST /journal error:', err.message);
+    res.status(500).json({ error: 'Failed to create journal entry' });
+  }
 });
 
-tradeRoutes.get('/performance', (req, res) => {
-  const weeklyReturns = Array.from({ length: 12 }, (_, i) => ({
-    week: `W${i + 1}`,
-    return: parseFloat(((Math.random() - 0.35) * 4).toFixed(2)),
-    target: 1.5,
-  }));
-
-  const monthlyStats = [
-    { month: 'Sep', winRate: 68, trades: 22, pnl: 5.2, sharpe: 1.62, maxDrawdown: 2.1 },
-    { month: 'Oct', winRate: 72, trades: 19, pnl: 6.8, sharpe: 1.85, maxDrawdown: 1.8 },
-    { month: 'Nov', winRate: 65, trades: 24, pnl: 4.1, sharpe: 1.35, maxDrawdown: 3.2 },
-    { month: 'Dec', winRate: 70, trades: 18, pnl: 5.5, sharpe: 1.55, maxDrawdown: 2.4 },
-    { month: 'Jan', winRate: 74, trades: 21, pnl: 7.2, sharpe: 1.92, maxDrawdown: 1.5 },
-    { month: 'Feb', winRate: 67, trades: 16, pnl: 4.8, sharpe: 1.48, maxDrawdown: 2.8 },
-  ];
-
-  res.json({ weeklyReturns, monthlyStats });
+tradeRoutes.put('/journal/:id', async (req, res) => {
+  const { id } = req.params;
+  const { title, content, type, tags } = req.body;
+  try {
+    const { rows } = await pool.query(
+      `UPDATE journal_entries SET title=$1, content=$2, type=$3, tags=$4, updated_at=NOW()
+       WHERE id=$5 RETURNING *`,
+      [title, content, type, tags || [], id]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'Entry not found' });
+    res.json(formatJournal(rows[0]));
+  } catch (err) {
+    console.error('PUT /journal error:', err.message);
+    res.status(500).json({ error: 'Failed to update journal entry' });
+  }
 });
+
+tradeRoutes.delete('/journal/:id', async (req, res) => {
+  try {
+    const { rowCount } = await pool.query('DELETE FROM journal_entries WHERE id=$1', [req.params.id]);
+    if (rowCount === 0) return res.status(404).json({ error: 'Entry not found' });
+    res.json({ success: true });
+  } catch (err) {
+    console.error('DELETE /journal error:', err.message);
+    res.status(500).json({ error: 'Failed to delete journal entry' });
+  }
+});
+
+// ── Watchlist (with live prices) ─────────────────────────────────────────
+
+tradeRoutes.get('/watchlist', async (req, res) => {
+  try {
+    const { rows } = await pool.query('SELECT symbol, name FROM watchlist ORDER BY added_at');
+    // Enrich with live prices
+    let prices = {};
+    try {
+      prices = await getAllPrices();
+    } catch { /* ignore */ }
+
+    const priceMap = {
+      'XAU/USD': { price: prices.gold?.price || 2650, change: prices.gold?.changePercent || 0 },
+      'XAG/USD': { price: prices.silver?.price || 31.5, change: prices.silver?.changePercent || 0 },
+      'DXY':     { price: prices.dxy?.price || 104, change: prices.dxy?.changePercent || 0 },
+    };
+
+    const watchlist = rows.map(r => ({
+      symbol: r.symbol,
+      name: r.name,
+      price: priceMap[r.symbol]?.price || 0,
+      change: priceMap[r.symbol]?.change || 0,
+    }));
+
+    res.json(watchlist);
+  } catch (err) {
+    console.error('GET /watchlist error:', err.message);
+    res.status(500).json({ error: 'Failed to fetch watchlist' });
+  }
+});
+
+// ── Performance (computed from DB trades) ────────────────────────────────
+
+tradeRoutes.get('/performance', async (req, res) => {
+  try {
+    // Get all closed trades for performance calculations
+    const { rows: trades } = await pool.query(
+      "SELECT * FROM trades WHERE result IN ('win','loss','breakeven') ORDER BY date"
+    );
+
+    // Weekly returns (last 12 weeks)
+    const weeklyReturns = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const weekStart = new Date(now);
+      weekStart.setDate(now.getDate() - i * 7 - now.getDay() + 1);
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekStart.getDate() + 6);
+      const weekTrades = trades.filter(t => {
+        const d = new Date(t.date);
+        return d >= weekStart && d <= weekEnd;
+      });
+      const ret = weekTrades.reduce((sum, t) => sum + parseFloat(t.pnl || 0), 0);
+      weeklyReturns.push({
+        week: weekStart.toLocaleDateString('en-US', { month: 'short', day: '2-digit' }),
+        return: parseFloat(ret.toFixed(2)),
+        target: 1.5,
+      });
+    }
+
+    // Monthly stats (last 6 months)
+    const monthlyStats = [];
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+      const monthTrades = trades.filter(t => {
+        const td = new Date(t.date);
+        return td >= d && td <= monthEnd;
+      });
+      const wins = monthTrades.filter(t => t.result === 'win').length;
+      const total = monthTrades.length;
+      const pnl = monthTrades.reduce((sum, t) => sum + parseFloat(t.pnl || 0), 0);
+      monthlyStats.push({
+        month: d.toLocaleDateString('en-US', { month: 'short' }),
+        winRate: total > 0 ? Math.round((wins / total) * 100) : 0,
+        trades: total,
+        pnl: parseFloat(pnl.toFixed(2)),
+        sharpe: 0,
+        maxDrawdown: 0,
+      });
+    }
+
+    res.json({ weeklyReturns, monthlyStats });
+  } catch (err) {
+    console.error('GET /performance error:', err.message);
+    res.status(500).json({ error: 'Failed to compute performance' });
+  }
+});
+
+// ── Formatters ───────────────────────────────────────────────────────────
+
+function formatTrade(row) {
+  return {
+    id: String(row.id),
+    date: row.date,
+    symbol: row.symbol,
+    direction: row.direction,
+    entry: parseFloat(row.entry),
+    target: row.target ? parseFloat(row.target) : null,
+    stop: row.stop ? parseFloat(row.stop) : null,
+    exit: row.exit_price ? parseFloat(row.exit_price) : null,
+    pnl: row.pnl ? parseFloat(row.pnl) : null,
+    riskReward: row.risk_reward ? parseFloat(row.risk_reward) : null,
+    result: row.result,
+    notes: row.notes,
+    createdAt: row.created_at,
+  };
+}
+
+function formatJournal(row) {
+  return {
+    id: String(row.id),
+    title: row.title,
+    content: row.content,
+    type: row.type,
+    tags: row.tags || [],
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
