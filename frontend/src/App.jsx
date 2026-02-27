@@ -11,6 +11,7 @@ import RiskTools from './pages/RiskTools';
 import Analytics from './pages/Analytics';
 import Journal from './pages/Journal';
 import Settings from './pages/Settings';
+import AISummary from './pages/AISummary';
 
 export default function App() {
   const { darkMode } = useAppStore();
@@ -27,6 +28,7 @@ export default function App() {
             <Route path="/risk" element={<RiskTools />} />
             <Route path="/analytics" element={<Analytics />} />
             <Route path="/journal" element={<Journal />} />
+            <Route path="/ai-summary" element={<AISummary />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Routes>

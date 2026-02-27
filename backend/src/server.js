@@ -9,6 +9,7 @@ import { priceRoutes } from './routes/prices.js';
 import { calendarRoutes } from './routes/calendar.js';
 import { tradeRoutes } from './routes/trades.js';
 import { newsRoutes } from './routes/news.js';
+import { aiRoutes } from './routes/ai.js';
 import { migrate } from './db/migrate.js';
 
 dotenv.config();
@@ -34,6 +35,7 @@ app.use('/api', priceRoutes);
 app.use('/api', calendarRoutes);
 app.use('/api', tradeRoutes);
 app.use('/api', newsRoutes);
+app.use('/api', aiRoutes);
 
 // Serve frontend static build
 const frontendDist = join(__dirname, '../../frontend/dist');

@@ -8,7 +8,7 @@ import {
 import {
   Dashboard as DashboardIcon, CalendarMonth, ShowChart, Assessment,
   MenuBook, Settings, Menu as MenuIcon, DarkMode, LightMode,
-  AccountCircle, TrendingUp, Logout, Calculate,
+  AccountCircle, TrendingUp, Logout, Calculate, AutoAwesome,
 } from '@mui/icons-material';
 import { useAppStore } from '../../context/store';
 import PriceTicker from '../common/PriceTicker';
@@ -22,6 +22,7 @@ const navItems = [
   { text: 'Risk Tools', icon: <Calculate />, path: '/risk' },
   { text: 'Analytics', icon: <Assessment />, path: '/analytics' },
   { text: 'Journal', icon: <MenuBook />, path: '/journal' },
+  { text: 'AI Summary', icon: <AutoAwesome />, path: '/ai-summary' },
   { text: 'Settings', icon: <Settings />, path: '/settings' },
 ];
 

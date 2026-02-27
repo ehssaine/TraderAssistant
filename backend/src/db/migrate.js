@@ -35,6 +35,15 @@ const schema = `
     added_at      TIMESTAMPTZ DEFAULT NOW()
   );
 
+  CREATE TABLE IF NOT EXISTS ai_summaries (
+    id            SERIAL PRIMARY KEY,
+    type          VARCHAR(10) NOT NULL CHECK (type IN ('weekly', 'daily')),
+    summary       TEXT NOT NULL,
+    context_data  JSONB DEFAULT '{}',
+    model         VARCHAR(30) DEFAULT 'rule-based',
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+  );
+
   -- Seed default watchlist if empty
   INSERT INTO watchlist (symbol, name)
   VALUES

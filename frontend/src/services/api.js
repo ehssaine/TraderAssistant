@@ -61,4 +61,16 @@ export const api = {
     body: JSON.stringify(entry),
   }),
   deleteJournalEntry: (id) => fetchAPI(`/api/journal/${id}`, { method: 'DELETE' }),
+
+  // AI Summaries
+  generateWeeklySummary: (data) => fetchAPI('/api/ai/summary/weekly', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  generateDailySummary: (data) => fetchAPI('/api/ai/summary/daily', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  }),
+  getAISummaries: (type) => fetchAPI(`/api/ai/summaries${type ? `?type=${type}` : ''}`),
+  deleteAISummary: (id) => fetchAPI(`/api/ai/summaries/${id}`, { method: 'DELETE' }),
 };
